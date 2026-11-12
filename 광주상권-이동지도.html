@@ -1,0 +1,468 @@
+<title>광주 상권 이동지도</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: 시기 선택 띠 → 지도(좌) + 시기 설명(우) → 공실률 차트 → 시기·트렌드 짝 표 → 출처 */
+:root {
+  --bg: #f6f7f5;
+  --surface: #ffffff;
+  --fg: #1d2421;
+  --muted: #5d6762;
+  --line: #d9dfdb;
+  --grid: #e8ece9;
+  --accent: #1f6f5c;
+  --accent-soft: #dcefe8;
+  --rise: #1f7a4d;
+  --decline: #b8452f;
+  --stable: #6b7a8f;
+  --plan: #8a5cc2;
+  --new: #c08a12;
+  --off: #c4cbc7;
+  --s1: #b8452f; /* 충장로 */
+  --s2: #c08a12; /* 전남대 */
+  --s3: #1f6f5c; /* 상무 */
+  --s4: #4b5fa8; /* 광주 전체 */
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "Consolas", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131816; --surface: #1b2220; --fg: #e6ebe8; --muted: #9aa6a0; --line: #2f3936; --grid: #242c29;
+    --accent: #5cc3a5; --accent-soft: #1f3a32; --rise: #5cc38a; --decline: #ec7a62; --stable: #9aa9bd;
+    --plan: #b591e6; --new: #e6b84a; --off: #4a5552;
+    --s1: #ec7a62; --s2: #e6b84a; --s3: #5cc3a5; --s4: #8fa2e8;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131816; --surface: #1b2220; --fg: #e6ebe8; --muted: #9aa6a0; --line: #2f3936; --grid: #242c29;
+  --accent: #5cc3a5; --accent-soft: #1f3a32; --rise: #5cc38a; --decline: #ec7a62; --stable: #9aa9bd;
+  --plan: #b591e6; --new: #e6b84a; --off: #4a5552;
+  --s1: #ec7a62; --s2: #e6b84a; --s3: #5cc3a5; --s4: #8fa2e8;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px 48px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 28px; }
+h1, h2, h3 { text-wrap: balance; margin: 0; line-height: 1.3; }
+h1 { font-size: 1.75rem; font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 1.2rem; font-weight: 700; }
+h3 { font-size: 1rem; font-weight: 600; }
+p { margin: 0; }
+.lede { color: var(--muted); max-width: 68ch; }
+.eyebrow { font-family: var(--font-data); font-size: 0.75rem; letter-spacing: 0.08em; color: var(--accent); text-transform: uppercase; }
+header { display: grid; gap: 8px; }
+
+/* 시기 선택 */
+.periods { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
+.periods button {
+  appearance: none; border: 0; border-right: 1px solid var(--line); background: transparent; color: var(--fg);
+  font: inherit; padding: 10px 8px; cursor: pointer; text-align: left; display: grid; gap: 2px; min-width: 0;
+}
+.periods button:last-child { border-right: 0; }
+.periods button .yr { font-family: var(--font-data); font-size: 0.85rem; font-weight: 500; }
+.periods button .nm { font-size: 0.78rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.periods button[aria-pressed="true"] { background: var(--accent); color: var(--surface); }
+.periods button[aria-pressed="true"] .nm { color: var(--surface); opacity: 0.85; }
+.periods button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.playrow { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; color: var(--muted); font-size: 0.85rem; }
+.playrow button { font: inherit; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 6px; padding: 4px 12px; cursor: pointer; }
+.playrow button:focus-visible { outline: 2px solid var(--accent); }
+
+/* 지도 + 패널 */
+.stage { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.mapbox { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px; min-width: 0; }
+.mapbox svg { width: 100%; height: auto; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 6px 8px 4px; font-size: 0.78rem; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.panel { display: grid; gap: 16px; min-width: 0; }
+.panel .head { display: grid; gap: 4px; }
+.panel .shift { font-weight: 600; color: var(--accent); }
+.block { display: grid; gap: 8px; }
+.block h3 { font-size: 0.82rem; color: var(--muted); font-weight: 600; letter-spacing: 0.04em; }
+.events { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.events li { display: grid; grid-template-columns: 6.6em minmax(0, 1fr); gap: 10px; font-size: 0.9rem; }
+.events .when { font-family: var(--font-data); font-size: 0.8rem; color: var(--muted); padding-top: 1px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 0.82rem; padding: 3px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--fg); }
+.chip.gone { background: transparent; border: 1px dashed var(--line); color: var(--muted); text-decoration: line-through; }
+.figs { display: grid; gap: 6px; }
+.fig { display: flex; justify-content: space-between; gap: 12px; font-size: 0.88rem; border-bottom: 1px solid var(--grid); padding-bottom: 4px; }
+.fig b { font-family: var(--font-data); font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.grade { font-family: var(--font-data); font-size: 0.7rem; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-left: 6px; color: var(--muted); }
+.note { font-size: 0.8rem; color: var(--muted); }
+
+/* 차트 */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 10px; min-width: 0; }
+.chartwrap { overflow-x: auto; }
+.chartwrap svg { min-width: 560px; width: 100%; height: auto; display: block; }
+
+/* 표 */
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 0.88rem; }
+th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+th { font-size: 0.78rem; color: var(--muted); font-weight: 600; letter-spacing: 0.03em; }
+td.yr { font-family: var(--font-data); white-space: nowrap; }
+tr.on td { background: var(--accent-soft); }
+footer { font-size: 0.82rem; color: var(--muted); display: grid; gap: 6px; max-width: 80ch; }
+footer a { color: var(--accent); }
+
+@media (max-width: 860px) {
+  .stage { grid-template-columns: minmax(0, 1fr); }
+  .periods { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .periods button:nth-child(3) { border-right: 0; }
+  .periods button:nth-child(-n+3) { border-bottom: 1px solid var(--line); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .node circle, .flow path { transition: r 0.35s ease, opacity 0.35s ease, fill 0.35s ease; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Gwangju commercial districts · 2000–2026</div>
+    <h1>광주 상권 이동지도</h1>
+    <p class="lede">시기를 고르면 그 시기에 상권의 중심이 어디서 어디로 옮겨갔는지 화살표로, 그때 뜬 트렌드와 사라진 트렌드를 오른쪽에 보여줍니다. 공실률은 한국부동산원 중대형 상가 기준이며, 원문을 대조한 수치만 넣었습니다.</p>
+  </header>
+
+  <div class="periods" role="group" aria-label="시기 선택" id="periods"></div>
+  <div class="playrow">
+    <button type="button" id="play">▶ 순서대로 보기</button>
+    <span>또는 키보드 ← → 로 시기 이동</span>
+  </div>
+
+  <section class="stage">
+    <div class="mapbox">
+      <svg id="map" viewBox="0 0 820 720" role="img" aria-label="광주 상권 위치와 시기별 이동 개념 지도"></svg>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--rise)"></i>부상</span>
+        <span><i class="dot" style="background:var(--accent)"></i>중심</span>
+        <span><i class="dot" style="background:var(--stable)"></i>유지</span>
+        <span><i class="dot" style="background:var(--decline)"></i>쇠퇴</span>
+        <span><i class="dot" style="background:var(--new)"></i>새로 등장</span>
+        <span><i class="dot" style="background:var(--plan)"></i>계획</span>
+        <span><i class="dot" style="background:var(--off)"></i>해당 시기 비활성</span>
+      </div>
+    </div>
+    <div class="panel" id="panel" aria-live="polite"></div>
+  </section>
+
+  <section class="card">
+    <h2>상권별 중대형 상가 공실률 (2022 1Q ~ 2025 2Q)</h2>
+    <p class="note">점 = 기사 원문에 적힌 수치, 빈 점 = 전분기 대비 증감폭으로 거꾸로 계산한 값. 선은 확인된 점끼리만 잇습니다. 2026년 수치는 광주·전남 합산이라 넣지 않았습니다.</p>
+    <div class="chartwrap"><svg id="chart" viewBox="0 0 760 340" role="img" aria-label="상권별 공실률 꺾은선 차트"></svg></div>
+  </section>
+
+  <section class="card">
+    <h2>시기별 상권 이동과 트렌드</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>시기</th><th>중심 이동</th><th>뜬 트렌드</th><th>약해진 트렌드</th><th>소비 방식</th><th>근거 등급</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <p class="note">근거 등급 A 공공기관 자료 · B 공식 통계를 인용한 기사(원문 확인) · C 현장 서술·기획 기사 · D 위키. 자세한 수치와 출처는 광주상권-과거변화.md에 있습니다.</p>
+  </section>
+
+  <footer>
+    <p>지도는 실제 위경도로 위치를 잡은 개념도입니다. 행정 경계와 도로는 그리지 않았고, 점의 위치는 상권 중심의 대략적인 지점입니다. 점 크기는 그 시기 상권의 위상을 정성적으로 나타낸 것이며 수치가 아닙니다.</p>
+    <p>주요 출처: 한국부동산원 상업용부동산 임대동향(뉴시스·광남신문·이투데이 보도), 행정안전부 일반음식점 인허가(남도일보), 국세청(남도일보·광주매일), 문화체육관광부, 연합뉴스, 광남신문 기획 시리즈, 위키백과. 작성 2026-11-12.</p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  // 지도 투영: 경도 126.77~126.95, 위도 35.11~35.24 → viewBox 820x720
+  var LNG0 = 126.77, LNG1 = 126.95, LAT0 = 35.11, LAT1 = 35.24;
+  function px(lat, lng) {
+    return { x: 20 + (lng - LNG0) / (LNG1 - LNG0) * 780, y: 20 + (LAT1 - lat) / (LAT1 - LAT0) * 680 };
+  }
+
+  var NODES = {
+    chungjang: { name: "충장로·금남로", lat: 35.1475, lng: 126.9165, dx: 14, dy: 22, anchor: "start" },
+    gusicheong: { name: "구시청", lat: 35.1500, lng: 126.9118, dx: -14, dy: -8, anchor: "end" },
+    acc: { name: "옛 도청·ACC", lat: 35.1462, lng: 126.9205, dx: 10, dy: 34, anchor: "start" },
+    dongmyeong: { name: "동명동", lat: 35.1500, lng: 126.9260, dx: 12, dy: -10, anchor: "start" },
+    gwangcheon: { name: "광천동 (터미널·신세계)", lat: 35.1600, lng: 126.8790, dx: 0, dy: -18, anchor: "middle" },
+    sangmu: { name: "상무지구 (시청)", lat: 35.1530, lng: 126.8510, dx: 0, dy: 30, anchor: "middle" },
+    cheomdan: { name: "첨단지구", lat: 35.2230, lng: 126.8450, dx: 0, dy: -18, anchor: "middle" },
+    suwan: { name: "수완지구", lat: 35.1900, lng: 126.8210, dx: 0, dy: -18, anchor: "middle" },
+    jnu: { name: "전남대 상권", lat: 35.1770, lng: 126.9100, dx: 0, dy: -18, anchor: "middle" },
+    geumho: { name: "금호지구", lat: 35.1330, lng: 126.8600, dx: 0, dy: 28, anchor: "middle" },
+    songjeong: { name: "1913송정역시장", lat: 35.1395, lng: 126.7935, dx: 6, dy: 30, anchor: "start" }
+  };
+  var SIZE = { dominant: 17, rise: 13, stable: 10, decline: 12, "new": 10, plan: 11 };
+  var COLOR = { dominant: "var(--accent)", rise: "var(--rise)", stable: "var(--stable)", decline: "var(--decline)", "new": "var(--new)", plan: "var(--plan)" };
+  var STATE_KO = { dominant: "중심", rise: "부상", stable: "유지", decline: "쇠퇴", "new": "새로 등장", plan: "계획" };
+
+  var PERIODS = [
+    {
+      id: "p2000", yr: "2000–04", name: "시청이 떠나다",
+      shift: "충장로 → 상무지구",
+      summary: "광주시청이 상무지구로 옮겨가면서 관공서 배후 수요가 신도심으로 이동했습니다. 원도심에서는 단관극장이 하나씩 문을 닫았습니다.",
+      nodes: { chungjang: "decline", gusicheong: "stable", acc: "stable", gwangcheon: "stable", sangmu: "rise", cheomdan: "new", jnu: "stable" },
+      flows: [{ from: "chungjang", to: "sangmu", label: "시청 이전 2004-03" }],
+      events: [["2000", "충장로 제일극장 폐관", "C"], ["2003-04", "상무지구 최종 완공", "D"], ["2004-03", "광주시청·시의회 상무지구 이전", "D"], ["2004", "충장로 현대극장 폐관", "C"]],
+      trendsUp: ["관공서 배후 유흥·회식", "나이트클럽·주점", "백화점 쇼핑"],
+      trendsDown: ["단관극장 → 식당 → 다방 동선"],
+      figs: [],
+      mode: "차로 이동하는 쇼핑, 저녁 회식", grade: "C·D"
+    },
+    {
+      id: "p2005", yr: "2005–09", name: "도청까지 떠나다",
+      shift: "원도심 → 무안 남악 / 상무 → 수완",
+      summary: "전남도청이 무안으로 옮겨가 공무원 약 1,500명의 일상 수요가 사라졌습니다. 같은 시기 호남 최대 택지지구인 수완지구가 열렸습니다.",
+      nodes: { chungjang: "decline", gusicheong: "decline", acc: "decline", gwangcheon: "stable", sangmu: "dominant", cheomdan: "rise", suwan: "new", jnu: "stable" },
+      flows: [{ from: "acc", to: "OUT_SW", label: "도청 → 무안 남악 2005" }, { from: "sangmu", to: "suwan", label: "택지지구 입주 2008~" }],
+      events: [["2005", "전남도청 무안(남악) 이전", "C"], ["2006-08", "광천터미널 일부 리모델링, '유스퀘어'로 이름 변경", "D"], ["2007-05", "수완지구 택지 공급 시작", "B"], ["2008 하반기", "수완지구 입주 시작 예정 (2만여 가구)", "B"]],
+      trendsUp: ["대형마트·아울렛", "택지지구 상가"],
+      trendsDown: ["원도심 낮 시간 업무 수요"],
+      figs: [],
+      mode: "주말 대형 쇼핑", grade: "C"
+    },
+    {
+      id: "p2010", yr: "2010–14", name: "신도심의 생활상권화",
+      shift: "원도심·대학가 → 수완·첨단",
+      summary: "수완·첨단이 아파트 배후의 생활상권으로 자리잡았습니다. 전남대 상권은 신도심 형성의 영향으로 위축되기 시작했고, 원도심 빈 점포는 2010년대 중반부터 눈에 띄게 늘었습니다.",
+      nodes: { chungjang: "decline", gusicheong: "decline", acc: "stable", gwangcheon: "stable", sangmu: "dominant", cheomdan: "rise", suwan: "rise", jnu: "decline" },
+      flows: [{ from: "jnu", to: "cheomdan", label: "대학가 → 첨단" }, { from: "chungjang", to: "suwan", label: "원도심 → 신도심" }],
+      events: [["2010년대", "첨단지구 등 신도심 형성으로 전남대 상권 위축 시작", "B"], ["2012", "충장로 무등극장 폐관, 극장가 사실상 소멸", "C"], ["2010년대 중반", "충장로·구시청 빈 점포 증가", "C"]],
+      trendsUp: ["마트·영화관 생활상권", "학원가", "프랜차이즈 카페"],
+      trendsDown: ["원도심 극장가", "대학가 저가 상권"],
+      figs: [],
+      mode: "동네 안 생활 소비", grade: "B·C"
+    },
+    {
+      id: "p2015", yr: "2015–19", name: "골목 상권의 부상",
+      shift: "충장로 → 동명동, 송정역시장 부활",
+      summary: "옛 도청 자리에 아시아문화전당이 문을 열며 바로 옆 동명동에 카페거리가 생겼습니다. 충장로의 높은 임대료를 피해 상인이 옮겨온 영향도 있습니다. 1913송정역시장은 청년 창업으로 다시 살아났습니다.",
+      nodes: { chungjang: "decline", gusicheong: "decline", acc: "new", dongmyeong: "rise", gwangcheon: "stable", sangmu: "dominant", cheomdan: "stable", suwan: "dominant", jnu: "decline", songjeong: "new" },
+      flows: [{ from: "chungjang", to: "dongmyeong", label: "임대료 회피·ACC 효과" }],
+      events: [["2015-11-25", "국립아시아문화전당 공식 개관", "A"], ["2010년대 중반", "동명동 카페거리 형성", "C"], ["2016-04", "1913송정역시장 재개장, 빈 점포 14곳 청년 창업", "C"]],
+      trendsUp: ["감성 카페·골목 맛집", "청년 창업", "전통시장 리모델링"],
+      trendsDown: ["원도심 대로변 의류 매장"],
+      figs: [],
+      mode: "SNS를 보고 찾아가는 목적형 방문", grade: "A·C"
+    },
+    {
+      id: "p2020", yr: "2020–22", name: "코로나와 배달",
+      shift: "동명동 중심 골목 → 외곽 골목",
+      summary: "배달 앱과 무인점포가 자리잡았습니다. 동명동에서는 임대료가 낮은 외곽 골목으로 가게가 옮겨갔습니다. 충장로 상권르네상스 사업이 시작된 2022년 1분기 공실률이 이후 비교의 기준점이 됩니다.",
+      nodes: { chungjang: "decline", gusicheong: "decline", acc: "stable", dongmyeong: "stable", gwangcheon: "stable", sangmu: "stable", cheomdan: "stable", suwan: "stable", jnu: "decline", songjeong: "stable" },
+      flows: [{ from: "dongmyeong", to: "DM_OUT", label: "외곽 골목으로" }],
+      events: [["2020", "광주 폐업 사업자 약 2만4,000명", "B"], ["2022 1Q", "충장로·금남로 중대형 공실률 24.03%", "B"], ["2022 4Q", "전남대 상권 중대형 공실률 30.6%", "B"]],
+      trendsUp: ["배달 전문점", "무인점포", "외곽 골목 술집"],
+      trendsDown: ["대면 외식·모임"],
+      figs: [["충장로·금남로 공실률 2022 1Q", "24.03%", "B"], ["전남대 공실률 2022 4Q", "30.6%", "B"], ["광주 폐업자 2020", "약 2만4,000명", "B"]],
+      mode: "비대면·배달", grade: "B"
+    },
+    {
+      id: "p2023", yr: "2023–26", name: "공실 고착과 폐업 초과",
+      shift: "원도심·대학가 정체, 상무 회복, 광천 개발 예정",
+      summary: "원도심과 대학가의 공실률이 20~40%대에서 내려오지 않았고, 2024년부터는 음식점 폐업이 개업보다 많아졌습니다. 상무지구는 빠르게 회복했고, 광천터미널 일대 복합개발이 다음 앵커로 준비 중입니다.",
+      nodes: { chungjang: "decline", gusicheong: "decline", acc: "stable", dongmyeong: "stable", gwangcheon: "plan", sangmu: "rise", cheomdan: "stable", suwan: "stable", jnu: "decline", geumho: "decline", songjeong: "stable" },
+      flows: [{ from: "chungjang", to: "gwangcheon", label: "복합개발 2029~2033 (계획)", plan: true }],
+      events: [["2023 4Q", "전남대 공실률 48.7% 정점", "B"], ["2024 1Q", "충장로·금남로 공실률 31.02% 정점", "B"], ["2024", "일반음식점 폐업이 개업을 넘어섬 (광주·전남)", "B"], ["2025 2Q", "금남로·충장로 오피스 공실률 44.83%, 전국 2위", "B"], ["2026", "통합특별시 출범, 광천 복합개발 착공 준비", "B"]],
+      trendsUp: ["단기 유행 업종 (탕후루 등)", "무인 운영", "1인 자영업"],
+      trendsDown: ["탕후루 (전국 2023-09 매출 정점)"],
+      figs: [["상무지구 공실률 2024 3Q → 2025 1Q", "19.03 → 12.70%", "B"], ["음식점 개업−폐업 2025 (광주·전남)", "−960곳", "B"], ["광주 폐업자 2024", "2만6,057명", "B"], ["고용원 없는 자영업자 비중 2025", "82.1%", "B"]],
+      mode: "짧은 유행 소비", grade: "B (광주 단독 업종 수치는 미확인)"
+    }
+  ];
+
+  var OUTS = { OUT_SW: { x: 40, y: 690 }, DM_OUT: null };
+
+  var svgNS = "http://www.w3.org/2000/svg";
+  function el(name, attrs, parent) {
+    var e = document.createElementNS(svgNS, name);
+    for (var k in attrs) {
+      var v = String(attrs[k]);
+      // CSS 변수는 SVG 속성에서 안 먹으므로 style로 지정
+      if (v.indexOf("var(") === 0) e.style.setProperty(k, v); else e.setAttribute(k, v);
+    }
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  var map = document.getElementById("map");
+  // 화살촉
+  var defs = el("defs", {}, map);
+  ["accent", "plan", "muted"].forEach(function (c) {
+    var m = el("marker", { id: "arrow-" + c, viewBox: "0 0 10 10", refX: "8", refY: "5", markerWidth: "7", markerHeight: "7", orient: "auto-start-reverse" }, defs);
+    el("path", { d: "M0,0 L10,5 L0,10 z", fill: c === "plan" ? "var(--plan)" : c === "muted" ? "var(--muted)" : "var(--accent)" }, m);
+  });
+
+  // 배경 격자 (약 2km 간격)
+  var bg = el("g", {}, map);
+  el("rect", { x: 0, y: 0, width: 820, height: 720, fill: "var(--surface)" }, bg);
+  for (var lng = 126.78; lng < 126.95; lng += 0.022) {
+    var a = px(LAT0, lng), b = px(LAT1, lng);
+    el("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: "var(--grid)", "stroke-width": 1 }, bg);
+  }
+  for (var lat = 35.12; lat < 35.24; lat += 0.018) {
+    var c = px(lat, LNG0), d = px(lat, LNG1);
+    el("line", { x1: c.x, y1: c.y, x2: d.x, y2: d.y, stroke: "var(--grid)", "stroke-width": 1 }, bg);
+  }
+  // 자치구 이름 (대략 위치)
+  [["광산구", 35.165, 126.800], ["서구", 35.140, 126.872], ["북구", 35.200, 126.905], ["동구", 35.135, 126.928], ["남구", 35.120, 126.895]].forEach(function (g) {
+    var p = px(g[1], g[2]);
+    var t = el("text", { x: p.x, y: p.y, "text-anchor": "middle", fill: "var(--off)", "font-size": 22, "font-weight": 700, "font-family": "var(--font-body)", "letter-spacing": "0.2em" }, bg);
+    t.textContent = g[0];
+  });
+  // 방위·축척
+  var comp = el("g", { transform: "translate(780,52)" }, bg);
+  el("path", { d: "M0,-22 L7,4 L0,-2 L-7,4 z", fill: "var(--muted)" }, comp);
+  var nt = el("text", { x: 0, y: 20, "text-anchor": "middle", fill: "var(--muted)", "font-size": 12, "font-family": "var(--font-data)" }, comp); nt.textContent = "N";
+  var kmPx = 780 / ((LNG1 - LNG0) * 91.1); // 1km 당 픽셀 (위도 35.2° 기준)
+  var sb = el("g", { transform: "translate(600,696)" }, bg);
+  el("line", { x1: 0, y1: 0, x2: kmPx * 3, y2: 0, stroke: "var(--muted)", "stroke-width": 2 }, sb);
+  el("line", { x1: 0, y1: -4, x2: 0, y2: 4, stroke: "var(--muted)", "stroke-width": 2 }, sb);
+  el("line", { x1: kmPx * 3, y1: -4, x2: kmPx * 3, y2: 4, stroke: "var(--muted)", "stroke-width": 2 }, sb);
+  var st = el("text", { x: kmPx * 1.5, y: -8, "text-anchor": "middle", fill: "var(--muted)", "font-size": 11, "font-family": "var(--font-data)" }, sb); st.textContent = "약 3km";
+
+  var flowLayer = el("g", { "class": "flow" }, map);
+  var nodeLayer = el("g", {}, map);
+  var nodeEls = {};
+  Object.keys(NODES).forEach(function (k) {
+    var n = NODES[k], p = px(n.lat, n.lng);
+    n.x = p.x; n.y = p.y;
+    var g = el("g", { "class": "node" }, nodeLayer);
+    var circ = el("circle", { cx: p.x, cy: p.y, r: 6, fill: "var(--off)", stroke: "var(--surface)", "stroke-width": 2 }, g);
+    // 라벨이 점 위쪽이면 이름을 한 줄 더 올리고 상태 글자를 그 아래(점 위)에 둔다
+    var nameY = n.dy < 0 ? p.y + n.dy - 14 : p.y + n.dy;
+    var t = el("text", { x: p.x + n.dx, y: nameY, "text-anchor": n.anchor, fill: "var(--fg)", "font-size": 13, "font-weight": 600, "font-family": "var(--font-body)", "paint-order": "stroke", stroke: "var(--surface)", "stroke-width": 4, "stroke-linejoin": "round" }, g);
+    t.textContent = n.name;
+    var s = el("text", { x: p.x + n.dx, y: nameY + 14, "text-anchor": n.anchor, fill: "var(--muted)", "font-size": 11, "font-family": "var(--font-body)", "paint-order": "stroke", stroke: "var(--surface)", "stroke-width": 4, "stroke-linejoin": "round" }, g);
+    nodeEls[k] = { circ: circ, label: t, state: s };
+  });
+  OUTS.DM_OUT = { x: NODES.dongmyeong.x + 70, y: NODES.dongmyeong.y - 60 };
+
+  function drawFlow(f) {
+    var a = NODES[f.from], b = NODES[f.to] || OUTS[f.to];
+    var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    var dx = b.x - a.x, dy = b.y - a.y, len = Math.sqrt(dx * dx + dy * dy) || 1;
+    var bend = Math.min(80, len * 0.22);
+    var cx = mx - dy / len * bend, cy = my + dx / len * bend;
+    // 끝점을 원 바깥으로 당김
+    var r = 20, ex = b.x - (b.x - cx) / Math.hypot(b.x - cx, b.y - cy) * r, ey = b.y - (b.y - cy) / Math.hypot(b.x - cx, b.y - cy) * r;
+    var color = f.plan ? "var(--plan)" : "var(--accent)";
+    el("path", { d: "M" + a.x + "," + a.y + " Q" + cx + "," + cy + " " + ex + "," + ey, fill: "none", stroke: color, "stroke-width": 3, "stroke-dasharray": f.plan || NODES[f.to] == null ? "8 6" : "none", "marker-end": "url(#arrow-" + (f.plan ? "plan" : "accent") + ")", opacity: 0.9 }, flowLayer);
+    var lx = (a.x + 2 * cx + ex) / 4, ly = (a.y + 2 * cy + ey) / 4;
+    var lt = el("text", { x: lx, y: ly - 6, "text-anchor": "middle", fill: color, "font-size": 12, "font-weight": 600, "font-family": "var(--font-body)", "paint-order": "stroke", stroke: "var(--surface)", "stroke-width": 5, "stroke-linejoin": "round" }, flowLayer);
+    lt.textContent = f.label;
+  }
+
+  var periodsEl = document.getElementById("periods");
+  var panel = document.getElementById("panel");
+  var tbody = document.getElementById("tbody");
+  var current = 0;
+
+  PERIODS.forEach(function (p, i) {
+    var btn = document.createElement("button");
+    btn.type = "button"; btn.id = "btn-" + p.id;
+    btn.innerHTML = '<span class="yr">' + p.yr + '</span><span class="nm">' + p.name + "</span>";
+    btn.addEventListener("click", function () { stopPlay(); show(i); });
+    periodsEl.appendChild(btn);
+
+    var tr = document.createElement("tr"); tr.id = "row-" + p.id;
+    tr.innerHTML = '<td class="yr">' + p.yr + "</td><td>" + p.shift + "</td><td>" + p.trendsUp.join(", ") + "</td><td>" + p.trendsDown.join(", ") + "</td><td>" + p.mode + "</td><td>" + p.grade + "</td>";
+    tbody.appendChild(tr);
+  });
+
+  function esc(s) { return String(s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
+
+  function show(i) {
+    current = i;
+    var p = PERIODS[i];
+    Array.prototype.forEach.call(periodsEl.children, function (b, j) { b.setAttribute("aria-pressed", j === i ? "true" : "false"); });
+    Array.prototype.forEach.call(tbody.children, function (r, j) { r.className = j === i ? "on" : ""; });
+    Object.keys(nodeEls).forEach(function (k) {
+      var st = p.nodes[k], ne = nodeEls[k];
+      ne.circ.setAttribute("r", st ? SIZE[st] : 5);
+      ne.circ.style.fill = st ? COLOR[st] : "var(--off)";
+      ne.circ.setAttribute("opacity", st ? 1 : 0.7);
+      ne.label.style.fill = st ? "var(--fg)" : "var(--muted)";
+      ne.label.setAttribute("opacity", st ? 1 : 0.55);
+      ne.state.textContent = st ? STATE_KO[st] : "";
+    });
+    while (flowLayer.firstChild) flowLayer.removeChild(flowLayer.firstChild);
+    p.flows.forEach(drawFlow);
+    if (p.flows.some(function (f) { return f.to === "OUT_SW"; })) {
+      var t = el("text", { x: 48, y: 672, fill: "var(--accent)", "font-size": 12, "font-family": "var(--font-body)" }, flowLayer);
+      t.textContent = "↙ 무안 남악까지 약 60km";
+    }
+
+    var html = '<div class="head"><div class="eyebrow">' + esc(p.yr) + '</div><h2>' + esc(p.name) + '</h2><p class="shift">' + esc(p.shift) + '</p><p>' + esc(p.summary) + "</p></div>";
+    html += '<div class="block"><h3>주요 사건</h3><ul class="events">' + p.events.map(function (e) {
+      return '<li><span class="when">' + esc(e[0]) + "</span><span>" + esc(e[1]) + '<span class="grade">' + e[2] + "</span></span></li>";
+    }).join("") + "</ul></div>";
+    html += '<div class="block"><h3>이 시기 트렌드</h3><div class="chips">' + p.trendsUp.map(function (t) { return '<span class="chip">' + esc(t) + "</span>"; }).join("") + p.trendsDown.map(function (t) { return '<span class="chip gone" title="약해진 트렌드">' + esc(t) + "</span>"; }).join("") + '</div><p class="note">소비 방식: ' + esc(p.mode) + "</p></div>";
+    if (p.figs.length) {
+      html += '<div class="block"><h3>핵심 수치</h3><div class="figs">' + p.figs.map(function (f) {
+        return '<div class="fig"><span>' + esc(f[0]) + '<span class="grade">' + f[2] + "</span></span><b>" + esc(f[1]) + "</b></div>";
+      }).join("") + "</div></div>";
+    } else {
+      html += '<p class="note">이 시기 상권별 공실률은 아직 수집하지 못했습니다 (부동산원 원자료 필요).</p>';
+    }
+    panel.innerHTML = html;
+  }
+
+  var timer = null;
+  var playBtn = document.getElementById("play");
+  function stopPlay() { if (timer) { clearInterval(timer); timer = null; playBtn.textContent = "▶ 순서대로 보기"; } }
+  playBtn.addEventListener("click", function () {
+    if (timer) { stopPlay(); return; }
+    show(0); playBtn.textContent = "■ 멈춤";
+    timer = setInterval(function () { if (current >= PERIODS.length - 1) { stopPlay(); return; } show(current + 1); }, 2800);
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowRight" && current < PERIODS.length - 1) { stopPlay(); show(current + 1); }
+    if (e.key === "ArrowLeft" && current > 0) { stopPlay(); show(current - 1); }
+  });
+  show(PERIODS.length - 1);
+
+  // 공실률 차트
+  var Q = ["22Q1", "22Q2", "22Q3", "22Q4", "23Q1", "23Q2", "23Q3", "23Q4", "24Q1", "24Q2", "24Q3", "24Q4", "25Q1", "25Q2"];
+  var SERIES = [
+    { name: "전남대", color: "var(--s2)", pts: [["22Q4", 30.6], ["23Q3", 45.5], ["23Q4", 48.7], ["24Q3", 35.14], ["24Q4", 37.71], ["25Q1", 38.05], ["25Q2", 37.11]] },
+    { name: "충장로·금남로", color: "var(--s1)", pts: [["22Q1", 24.03], ["23Q3", 27.9, true], ["23Q4", 28.0], ["24Q1", 31.02], ["24Q2", 25.3], ["24Q3", 24.97], ["24Q4", 24.36], ["25Q1", 26.42]] },
+    { name: "상무지구", color: "var(--s3)", pts: [["23Q3", 14.4, true], ["23Q4", 18.3], ["24Q3", 19.03], ["24Q4", 15.76], ["25Q1", 12.70]] },
+    { name: "광주 전체", color: "var(--s4)", pts: [["23Q3", 16.4], ["23Q4", 17.57], ["24Q1", 17.01], ["24Q2", 16.01], ["24Q3", 15.43], ["25Q1", 16.22]] }
+  ];
+  var ch = document.getElementById("chart");
+  var L = 48, R = 130, T = 16, B = 40, W = 760, H = 340;
+  function cx(q) { return L + Q.indexOf(q) / (Q.length - 1) * (W - L - R); }
+  function cy(v) { return T + (1 - v / 50) * (H - T - B); }
+  [0, 10, 20, 30, 40, 50].forEach(function (v) {
+    el("line", { x1: L, y1: cy(v), x2: W - R, y2: cy(v), stroke: "var(--grid)", "stroke-width": 1 }, ch);
+    var t = el("text", { x: L - 8, y: cy(v) + 4, "text-anchor": "end", fill: "var(--muted)", "font-size": 11, "font-family": "var(--font-data)" }, ch); t.textContent = v + "%";
+  });
+  Q.forEach(function (q, i) {
+    if (i % 2 === 0 || i === Q.length - 1) {
+      var t = el("text", { x: cx(q), y: H - B + 20, "text-anchor": "middle", fill: "var(--muted)", "font-size": 11, "font-family": "var(--font-data)" }, ch); t.textContent = "20" + q.slice(0, 2) + " " + q.slice(2);
+    }
+  });
+  var lastY = [];
+  SERIES.forEach(function (s) {
+    var d = s.pts.map(function (p, i) { return (i ? "L" : "M") + cx(p[0]) + "," + cy(p[1]); }).join(" ");
+    el("path", { d: d, fill: "none", stroke: s.color, "stroke-width": 2.25, "stroke-linejoin": "round" }, ch);
+    s.pts.forEach(function (p) {
+      var c = el("circle", { cx: cx(p[0]), cy: cy(p[1]), r: 4, fill: p[2] ? "var(--surface)" : s.color, stroke: s.color, "stroke-width": 2 }, ch);
+      var tt = el("title", {}, c); tt.textContent = s.name + " 20" + p[0].slice(0, 2) + " " + p[0].slice(2) + ": " + p[1] + "%" + (p[2] ? " (계산값)" : "");
+    });
+    var last = s.pts[s.pts.length - 1];
+    var ly = cy(last[1]);
+    lastY.forEach(function (y) { if (Math.abs(y - ly) < 14) ly = y + 14; });
+    lastY.push(ly);
+    var lab = el("text", { x: W - R + 10, y: ly + 4, fill: s.color, "font-size": 12, "font-weight": 600, "font-family": "var(--font-body)" }, ch);
+    lab.textContent = s.name + " " + last[1] + "%";
+  });
+})();
+</script>
